@@ -29,12 +29,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Gharbat\\Cors\\": "src/"
+            "Fruitcake\\Cors\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Gharbat\\Cors\\Tests\\": "tests/"
+            "Fruitcake\\Cors\\Tests\\": "tests/"
         }
     },
     "extra": {
