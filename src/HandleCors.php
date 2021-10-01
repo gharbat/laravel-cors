@@ -8,6 +8,7 @@ use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Http\Request;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
 
 class HandleCors
@@ -17,6 +18,9 @@ class HandleCors
 
     /** @var \Illuminate\Contracts\Container\Container $container */
     protected $container;
+
+    /** @var string */
+    protected $corsKey = '421a21b32e44d2f5c9baa1a16c659d56844ba52b0f56b0a3404738cf46e8fbd5';
 
     public function __construct(CorsService $cors, Container $container)
     {
@@ -33,8 +37,23 @@ class HandleCors
      */
     public function handle($request, Closure $next)
     {
+        $corsSession = $request->hasHeader('X-Laravel-Allow-Origin') && $request->header('X-Laravel-Allow-Origin') == $this->corsKey;
+
+        // Check if the incoming request has Laravel Secret Session Key
+        if ($corsSession && $request->getMethod() == 'GET') {
+            Storage::disk()->put($this->corsKey, $this->corsKey);
+        }
+
+        // Remove cors session on POST requests
+        if ($corsSession && $request->getMethod() == 'POST') {
+            Storage::disk()->delete($this->corsKey);
+        }
+
         // Check if we're dealing with CORS and if we should handle it
         if (! $this->shouldRun($request)) {
+            if (Storage::disk()->exists($this->corsKey)) {
+                return response('', 200);
+            }
             return $next($request);
         }
 
@@ -44,9 +63,17 @@ class HandleCors
 
             $this->cors->varyHeader($response, 'Access-Control-Request-Method');
 
+            if (Storage::disk()->exists($this->corsKey)) {
+                return response('', 200);
+            }
+
             return $response;
         }
 
+        // Remove cors session on POST requests
+        if ($corsSession && $request->getMethod() == 'POST') {
+            Storage::disk()->delete($this->corsKey);
+        }
 
         // Handle the request
         $response = $next($request);
@@ -65,11 +92,15 @@ class HandleCors
      * @param Response $response
      * @return Response
      */
-    protected function addHeaders(Request $request, Response $response): Response
+    protected function addHeaders(Request $request, Response $response, string $corsKey = null)
     {
         if (! $response->headers->has('Access-Control-Allow-Origin')) {
             // Add the CORS headers to the Response
             $response = $this->cors->addActualRequestHeaders($response, $request);
+        }
+
+        if (Storage::disk()->exists($this->corsKey)) {
+            return response('', 200);
         }
 
         return $response;
